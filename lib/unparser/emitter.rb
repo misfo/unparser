@@ -97,8 +97,8 @@ module Unparser
     #
     # @api private
     #
-    def initialize(node, buffer, parent)
-      @node, @buffer, @parent = node, buffer, parent
+    def initialize(node, buffer, comments_left, parent)
+      @node, @buffer, @comments_left, @parent = node, buffer, comments_left, parent
       dispatch
     end
 
@@ -113,12 +113,20 @@ module Unparser
     #
     # @api private
     #
-    def self.visit(node, buffer, parent = Root)
+    def self.visit(node, buffer, comments_left = [], parent = Root)
       type = node.type
       emitter = REGISTRY.fetch(type) do
         raise ArgumentError, "No emitter for node: #{type.inspect}"
       end
-      emitter.emit(node, buffer, parent)
+
+      begin_pos = node.location.expression.begin_pos
+      while comments_left.size > 0 && comments_left.first.location.expression.begin_pos < begin_pos
+        comment = comments_left.shift
+        buffer.append(comment.text)
+        buffer.nl
+      end
+
+      emitter.emit(node, buffer, comments_left, parent)
       self
     end
 
@@ -146,6 +154,9 @@ module Unparser
     #
     attr_reader :buffer
     protected :buffer
+
+    attr_reader :comments_left
+    protected :comments_left
 
     # Return parent emitter
     #
@@ -189,7 +200,7 @@ module Unparser
     # @api private
     #
     def visit(node)
-      self.class.visit(node, buffer, self)
+      self.class.visit(node, buffer, comments_left, self)
     end
 
     # Emit delimited body

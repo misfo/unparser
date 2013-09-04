@@ -15,12 +15,12 @@ module Unparser
   #
   # @api private
   #
-  def self.unparse(node)
+  def self.unparse(node, comments = [])
     if node.nil?
       node = Parser::AST::Node.new(:empty)
     end
     buffer = Buffer.new
-    Emitter.visit(node, buffer)
+    Emitter.visit(node, buffer, comments.dup)
     buffer.content
   end
 
