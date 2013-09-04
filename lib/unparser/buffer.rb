@@ -32,6 +32,15 @@ module Unparser
       self
     end
 
+    def insert_before_newlines(string)
+      newlines = @content[/\n*\Z/].size
+      if newlines == 0
+        raise "Expected buffer to end with a newline"
+      end
+      @content.insert((-1 - newlines), string)
+      self
+    end
+
     # Increase indent
     #
     # @return [self]

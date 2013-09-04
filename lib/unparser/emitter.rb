@@ -122,8 +122,13 @@ module Unparser
       begin_pos = node.location.expression.begin_pos
       while comments_left.size > 0 && comments_left.first.location.expression.begin_pos < begin_pos
         comment = comments_left.shift
-        buffer.append(comment.text)
-        buffer.nl
+        if comment.type == :document || comment.location.expression.source_line =~ /\A\s*#/
+          buffer.append(comment.text)
+          buffer.nl
+        else
+          # comment is appended to a line with code on it
+          buffer.insert_before_newlines(WS + comment.text)
+        end
       end
 
       emitter.emit(node, buffer, comments_left, parent)
