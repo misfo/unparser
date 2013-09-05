@@ -66,13 +66,14 @@ describe Unparser do
       end
     end
 
-    def self.assert_generates(ast, expected, versions = RUBIES)
+    def self.assert_generates(ast_or_string, expected, versions = RUBIES)
       with_versions(versions) do |version, parser_class|
-        it "should generate #{ast.inspect} as #{expected} under #{version}" do
-          comments = []
-          if ast.kind_of?(String)
-            ast, comments = parse_with_comments(ast, parser_class)
-          end
+        it "should generate #{ast_or_string.inspect} as #{expected} under #{version}" do
+          ast, comments = if ast_or_string.kind_of?(String)
+                            parse_with_comments(ast_or_string, parser_class)
+                          else
+                            [ast_or_string, []]
+                          end
           generated = Unparser.unparse(ast, comments)
           generated.should eql(expected)
           ast, comments = parse_with_comments(generated, parser_class)
