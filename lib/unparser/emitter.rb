@@ -99,7 +99,7 @@ module Unparser
     #
     def initialize(node, buffer, comments_left, parent)
       @node, @buffer, @comments_left, @parent = node, buffer, comments_left, parent
-      dispatch
+      emit_surrounding_comments { dispatch }
     end
 
     private_class_method :new
@@ -118,59 +118,9 @@ module Unparser
       emitter = REGISTRY.fetch(type) do
         raise ArgumentError, "No emitter for node: #{type.inspect}"
       end
-
-      loc = node.location
-      if loc && buffer.fresh_line?
-        begin_pos = loc.expression.begin_pos
-        comment_before_count = comments_left.index { |comment| comment.location.expression.begin_pos > begin_pos } || comments_left.size
-        comments_before = comments_left.shift(comment_before_count)
-        unless comments_before.empty?
-          emit_comments(buffer, comments_before)
-          buffer.nl
-        end
-      end
-
       emitter.emit(node, buffer, comments_left, parent)
-
-      if loc
-        node_range = loc.expression
-        end_line = node_range.end.line
-        end_pos = node_range.end_pos
-        while comments_left.size > 0 && comments_left.first.location.expression.line <= end_line
-          comment = comments_left.shift
-          buffer.append_to_end_of_line(WS + comment.text)
-          end_pos = [end_pos, comment.location.expression.end_pos].max
-        end
-
-        full_line_comment_count = comments_left.size
-        comments_left.each_with_index do |comment, index|
-          comment_range = comment.location.expression
-          range_between = Parser::Source::Range.new(comment_range.source_buffer, end_pos, comment_range.begin_pos)
-          if range_between.source =~ /\A\s*\Z/
-            end_pos = comment_range.end_pos
-          else
-            full_line_comment_count = index
-            break
-          end
-        end
-        full_line_comments = comments_left.shift(full_line_comment_count)
-        full_line_comments.each do |comment|
-          buffer.append_to_end_of_line(NL + comment.text)
-        end
-      end
-
       self
     end
-
-    def self.emit_comments(buffer, full_line_comments)
-      max = full_line_comments.size - 1
-      full_line_comments.each_with_index do |comment, index|
-        buffer.ensure_nl
-        buffer.append(comment.text)
-        buffer.ensure_nl if index < max
-      end
-    end
-    private_class_method :emit_comments
 
     # Dispatch node
     #
@@ -339,6 +289,49 @@ module Unparser
       buffer.indent
       yield
       buffer.unindent
+    end
+
+    def emit_surrounding_comments
+      loc = node.location
+      return yield if loc.nil?
+
+      if buffer.fresh_line?
+        begin_pos = loc.expression.begin_pos
+        comment_before_count = comments_left.index { |comment| comment.location.expression.begin_pos > begin_pos } || comments_left.size
+        comments_before = comments_left.shift(comment_before_count)
+        unless comments_before.empty?
+          max = comments_before.size - 1
+          comments_before.each_with_index do |comment, index|
+            buffer.ensure_nl
+            buffer.append(comment.text)
+            buffer.ensure_nl if index < max
+          end
+          buffer.nl
+        end
+      end
+
+      yield
+
+      node_range = loc.expression
+      end_line = node_range.end.line
+      last_pos_emitted = node_range.end_pos
+      while comments_left.size > 0 && comments_left.first.location.expression.line <= end_line
+        comment = comments_left.shift
+        buffer.append_to_end_of_line(WS + comment.text)
+        last_pos_emitted = [last_pos_emitted, comment.location.expression.end_pos].max
+      end
+
+      while comments_left.size > 0
+        comment_range = comments_left.first.location.expression
+        range_between = Parser::Source::Range.new(comment_range.source_buffer, last_pos_emitted, comment_range.begin_pos)
+        if range_between.source =~ /\A\s*\Z/
+          comment = comments_left.shift
+          buffer.append_to_end_of_line(NL + comment.text)
+          last_pos_emitted = comment_range.end_pos
+        else
+          break
+        end
+      end
     end
 
     # Emit non nil body
