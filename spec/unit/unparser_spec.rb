@@ -1115,6 +1115,7 @@ describe Unparser do
 
       assert_source <<-RUBY
         nested do # first
+          # second
           something # comment
           # another
         end

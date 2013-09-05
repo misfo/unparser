@@ -154,7 +154,9 @@ module Unparser
           end
         end
         full_line_comments = comments_left.shift(full_line_comment_count)
-        emit_comments(buffer, full_line_comments)
+        full_line_comments.each do |comment|
+          buffer.append_to_end_of_line(NL + comment.text)
+        end
       end
 
       self

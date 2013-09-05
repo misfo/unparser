@@ -53,8 +53,8 @@ module Unparser
     # @api private
     #
     def indent
-      nl
       @indent+=1
+      nl
       self
     end
 
@@ -77,7 +77,9 @@ module Unparser
     # @api private
     #
     def nl
-      @content << @line_suffix
+      @line_suffix.lines.each do |line|
+        append(line)
+      end
       @content << NL
       @line_suffix = ''
       self
