@@ -119,21 +119,56 @@ module Unparser
         raise ArgumentError, "No emitter for node: #{type.inspect}"
       end
 
-      begin_pos = node.location.expression.begin_pos
-      while comments_left.size > 0 && comments_left.first.location.expression.begin_pos < begin_pos
-        comment = comments_left.shift
-        if comment.type == :document || comment.location.expression.source_line =~ /\A\s*#/
-          buffer.append(comment.text)
+      loc = node.location
+      if loc && buffer.fresh_line?
+        begin_pos = loc.expression.begin_pos
+        comment_before_count = comments_left.index { |comment| comment.location.expression.begin_pos > begin_pos } || comments_left.size
+        comments_before = comments_left.shift(comment_before_count)
+        unless comments_before.empty?
+          emit_comments(buffer, comments_before)
           buffer.nl
-        else
-          # comment is appended to a line with code on it
-          buffer.insert_before_newlines(WS + comment.text)
         end
       end
 
       emitter.emit(node, buffer, comments_left, parent)
+
+      if loc
+        node_range = loc.expression
+        end_line = node_range.end.line
+        end_pos = node_range.end_pos
+        while comments_left.size > 0 && comments_left.first.location.expression.line <= end_line
+          comment = comments_left.shift
+          buffer.append_to_end_of_line(WS + comment.text)
+          end_pos = [end_pos, comment.location.expression.end_pos].max
+        end
+
+        full_line_comment_count = comments_left.size
+        comments_left.each_with_index do |comment, index|
+          comment_range = comment.location.expression
+          range_between = Parser::Source::Range.new(comment_range.source_buffer, end_pos, comment_range.begin_pos)
+          if range_between.source =~ /\A\s*\Z/
+            end_pos = comment_range.end_pos
+          else
+            full_line_comment_count = index
+            break
+          end
+        end
+        full_line_comments = comments_left.shift(full_line_comment_count)
+        emit_comments(buffer, full_line_comments)
+      end
+
       self
     end
+
+    def self.emit_comments(buffer, full_line_comments)
+      max = full_line_comments.size - 1
+      full_line_comments.each_with_index do |comment, index|
+        buffer.ensure_nl
+        buffer.append(comment.text)
+        buffer.ensure_nl if index < max
+      end
+    end
+    private_class_method :emit_comments
 
     # Dispatch node
     #
@@ -342,7 +377,7 @@ module Unparser
     #   if parent is present
     #
     # @return [nil]
-    #   otherwiseo
+    #   otherwise
     #
     # @api private
     #

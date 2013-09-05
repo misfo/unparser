@@ -25,6 +25,17 @@ describe Unparser do
       end
     end
 
+    def parse_with_comments(input, parser_class)
+      parser = parser_class.new
+      source_buffer = Parser::Source::Buffer.new('(string)')
+      if parser_class.name == 'Parser::Ruby18'
+        source_buffer.raw_source = input
+      else
+        source_buffer.source = input
+      end
+      parser.parse_with_comments(source_buffer)
+    end
+
     def self.strip(ruby)
       lines = ruby.lines
       line = lines.first
@@ -36,34 +47,36 @@ describe Unparser do
       source.chomp
     end
 
-    def assert_round_trip(input, parser)
-      ast = parser.parse(input)
-      generated = Unparser.unparse(ast)
+    def assert_round_trip(input, parser_class)
+      ast, comments = parse_with_comments(input, parser_class)
+      generated = Unparser.unparse(ast, comments)
       generated.should eql(input)
     end
 
     def self.assert_generates_one_way(ast, expected, versions = RUBIES)
-      with_versions(versions) do |version, parser|
+      with_versions(versions) do |version, parser_class|
         it "should generate #{ast.inspect} as #{expected} under #{version}" do
+          comments = []
           if ast.kind_of?(String)
-            ast = parser.parse(ast)
+            ast, comments = parse_with_comments(ast, parser_class)
           end
-          generated = Unparser.unparse(ast)
+          generated = Unparser.unparse(ast, comments)
           generated.should eql(expected)
         end
       end
     end
 
     def self.assert_generates(ast, expected, versions = RUBIES)
-      with_versions(versions) do |version, parser|
+      with_versions(versions) do |version, parser_class|
         it "should generate #{ast.inspect} as #{expected} under #{version}" do
+          comments = []
           if ast.kind_of?(String)
-            ast = parser.parse(ast)
+            ast, comments = parse_with_comments(ast, parser_class)
           end
-          generated = Unparser.unparse(ast)
+          generated = Unparser.unparse(ast, comments)
           generated.should eql(expected)
-          ast = parser.parse(generated)
-          Unparser.unparse(ast).should eql(expected)
+          ast, comments = parse_with_comments(generated, parser_class)
+          Unparser.unparse(ast, comments).should eql(expected)
         end
       end
     end
@@ -1087,6 +1100,28 @@ describe Unparser do
           3
         end
       RUBY
+    end
+
+    context 'comments' do
+      assert_source <<-RUBY
+        # comment before
+        a_line_of_code
+      RUBY
+
+      assert_source <<-RUBY
+        a_line_of_code # comment after
+      RUBY
+
+      assert_source <<-RUBY
+        nested do # first
+          something # comment
+          # another
+        end
+        # last
+      RUBY
+
+      assert_generates "1 + # first\n  2 # second", "1 + 2 # first # second"
+      assert_generates "1 +\n# first\n  2 # second", "1 + 2 # first # second"
     end
   end
 end

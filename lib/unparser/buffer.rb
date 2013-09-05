@@ -13,6 +13,7 @@ module Unparser
     #
     def initialize
       @content = ''
+      @line_suffix = ''
       @indent = 0
     end
 
@@ -32,12 +33,16 @@ module Unparser
       self
     end
 
-    def insert_before_newlines(string)
-      newlines = @content[/\n*\Z/].size
-      if newlines == 0
-        raise "Expected buffer to end with a newline"
-      end
-      @content.insert((-1 - newlines), string)
+    def fresh_line?
+      @content.empty? || @content[-1] == NL
+    end
+
+    def ensure_nl
+      nl unless fresh_line?
+    end
+
+    def append_to_end_of_line(string)
+      @line_suffix << string
       self
     end
 
@@ -72,7 +77,9 @@ module Unparser
     # @api private
     #
     def nl
+      @content << @line_suffix
       @content << NL
+      @line_suffix = ''
       self
     end
 
@@ -83,7 +90,7 @@ module Unparser
     # @api private
     #
     def content
-      @content.dup.freeze
+      (@content + @line_suffix).freeze
     end
 
   private
