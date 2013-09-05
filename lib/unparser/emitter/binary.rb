@@ -3,13 +3,24 @@ module Unparser
     # Base class for binary emitters
     class Binary < self
 
-      handle :or, :and
       children :left, :right
 
       MAP = {
         :or => T_OR,
         :and => T_AND
       }.freeze
+
+      handle *MAP.keys
+
+      # Test if expression is terminated
+      #
+      # @return [false]
+      #
+      # @api private
+      #
+      def terminated?
+        false
+      end
 
     private
 
@@ -20,31 +31,9 @@ module Unparser
       # @api private
       #
       def dispatch
-        parentheses do
-          emit_left
-          write(WS, MAP.fetch(node.type), WS)
-          emit_right
-        end
-      end
-
-      # Emit left
-      #
-      # @return [undefined]
-      #
-      # @api private
-      #
-      def emit_left
-        parentheses { visit(left) }
-      end
-
-      # Emit right
-      #
-      # @return [undefined]
-      #
-      # @api private
-      #
-      def emit_right
-        parentheses { visit(right) }
+        visit_terminated(left)
+        write(WS, MAP.fetch(node.type), WS)
+        visit_terminated(right)
       end
 
     end # Binary

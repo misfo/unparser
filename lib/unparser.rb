@@ -20,7 +20,7 @@ module Unparser
       node = Parser::AST::Node.new(:empty)
     end
     buffer = Buffer.new
-    Emitter.visit(node, buffer, comments.dup)
+    Emitter.emitter(node, Emitter::Root.new(buffer, comments)).write_to_buffer
     buffer.content
   end
 
@@ -57,6 +57,7 @@ require 'unparser/emitter/send'
 require 'unparser/emitter/send/unary'
 require 'unparser/emitter/send/binary'
 require 'unparser/emitter/send/index'
+require 'unparser/emitter/send/regular'
 require 'unparser/emitter/block'
 require 'unparser/emitter/assignment'
 require 'unparser/emitter/variable'
@@ -80,7 +81,6 @@ require 'unparser/emitter/next'
 require 'unparser/emitter/if'
 require 'unparser/emitter/alias'
 require 'unparser/emitter/yield'
-require 'unparser/emitter/not'
 require 'unparser/emitter/binary'
 require 'unparser/emitter/case'
 require 'unparser/emitter/for'

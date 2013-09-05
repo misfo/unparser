@@ -3,7 +3,7 @@ module Unparser
   # Emitter base class
   class Emitter
     include Adamantium::Flat, AbstractType, Constants
-    include Equalizer.new(:node, :buffer, :parent)
+    include Concord.new(:node, :parent)
 
     # Registry for node emitters
     REGISTRY = {}
@@ -77,49 +77,40 @@ module Unparser
     end
     private_class_method :handle
 
-    # Emit node into buffer
+    # Trigger write to buffer
+    #
+    # @return [self]
+    #
+    # @api private
+    #
+    def write_to_buffer
+      emit_surrounding_comments { dispatch }
+      self
+    end
+    memoize :write_to_buffer
+
+    # Emit node
     #
     # @return [self]
     #
     # @api private
     #
     def self.emit(*arguments)
-      new(*arguments)
-      self
+      new(*arguments).write_to_buffer
     end
 
-    # Initialize object
-    #
-    # @param [Parser::AST::Node] node
-    # @param [Buffer] buffer
-    #
-    # @return [undefined]
-    #
-    # @api private
-    #
-    def initialize(node, buffer, comments_left, parent)
-      @node, @buffer, @comments_left, @parent = node, buffer, comments_left, parent
-      emit_surrounding_comments { dispatch }
-    end
-
-    private_class_method :new
-
-    # Visit node
-    #
-    # @param [Parser::AST::Node] node
-    # @param [Buffer] buffer
+    # Return emitter
     #
     # @return [Emitter]
     #
     # @api private
     #
-    def self.visit(node, buffer, comments_left = [], parent = Root)
+    def self.emitter(node, parent)
       type = node.type
-      emitter = REGISTRY.fetch(type) do
+      klass = REGISTRY.fetch(type) do
         raise ArgumentError, "No emitter for node: #{type.inspect}"
       end
-      emitter.emit(node, buffer, comments_left, parent)
-      self
+      klass.new(node, parent)
     end
 
     # Dispatch node
@@ -138,26 +129,36 @@ module Unparser
     #
     attr_reader :node
 
+    # Test if node is emitted as terminated expression
+    #
+    # @return [false]
+    #   if emitted node is unambigous
+    #
+    # @return [true]
+    #
+    # @api private
+    #
+    def terminated?
+      TERMINATED.include?(node.type)
+    end
+
+  protected
+
     # Return buffer
     #
     # @return [Buffer] buffer
     #
     # @api private
     #
-    attr_reader :buffer
-    protected :buffer
+    def buffer
+      parent.buffer
+    end
+    memoize :buffer, :freezer => :noop
 
-    attr_reader :comments_left
-    protected :comments_left
-
-    # Return parent emitter
-    #
-    # @return [Parent]
-    #
-    # @api private
-    #
-    attr_reader :parent
-    protected :parent
+    def comments_left
+      parent.comments_left
+    end
+    memoize :comments_left, :freezer => :noop
 
   private
 
@@ -183,7 +184,7 @@ module Unparser
       SourceMap.emit(node, buffer)
     end
 
-    # Dispatch helper
+    # Visit node
     #
     # @param [Parser::AST::Node] node
     #
@@ -192,7 +193,37 @@ module Unparser
     # @api private
     #
     def visit(node)
-      self.class.visit(node, buffer, comments_left, self)
+      emitter = emitter(node)
+      emitter.write_to_buffer
+    end
+
+    # Visit unambigous node
+    #
+    # @param [Parser::AST::Node] node
+    #
+    # @return [undefined]
+    #
+    # @api private
+    #
+    def visit_terminated(node)
+      emitter = emitter(node)
+      unless emitter.terminated?
+        parentheses { emitter.write_to_buffer }
+        return
+      end
+      emitter.write_to_buffer
+    end
+
+    # Return emitter for node
+    #
+    # @param [Parser::AST::Node] node
+    #
+    # @return [Emitter]
+    #
+    # @api private
+    #
+    def emitter(node)
+      self.class.emitter(node, self)
     end
 
     # Emit delimited body
