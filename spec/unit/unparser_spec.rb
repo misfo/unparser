@@ -157,6 +157,7 @@ describe Unparser do
         assert_generates '1..2', %q(1..2)
         assert_source   '(0.0 / 0.0)..1'
         assert_source   '1..(0.0 / 0.0)'
+        assert_source   '(0.0 / 0.0)..100'
       end
 
       context 'erange' do
@@ -331,9 +332,103 @@ describe Unparser do
         end
       RUBY
 
-      # Special cases
+      assert_source <<-RUBY
+        foo.bar do
+        end.baz
+      RUBY
+
       assert_source '(1..2).max'
+      assert_source '1..2.max'
       assert_source '(a = b).bar'
+      assert_source '@ivar.bar'
+      assert_source '//.bar'
+      assert_source '$var.bar'
+      assert_source '"".bar'
+      assert_source 'defined?(@foo).bar'
+      assert_source 'break.foo'
+      assert_source 'next.foo'
+      assert_source 'super(a).foo'
+      assert_source 'a || return'
+      assert_source 'super.foo'
+      assert_source 'nil.foo'
+      assert_source ':sym.foo'
+      assert_source '1.foo'
+      assert_source '1.0.foo'
+      assert_source '[].foo'
+      assert_source '{}.foo'
+      assert_source 'false.foo'
+      assert_source 'true.foo'
+      assert_source 'self.foo'
+      assert_source 'yield(a).foo'
+      assert_source 'yield.foo'
+      assert_source 'Foo::Bar.foo'
+      assert_source '::BAZ.foo'
+      assert_source 'array[i].foo'
+      assert_source '(array[i] = 1).foo'
+      assert_source 'array[1..2].foo'
+      assert_source '(a.attribute ||= foo).bar'
+
+      assert_source <<-RUBY
+        begin
+        rescue
+        end.bar
+      RUBY
+
+      assert_source <<-RUBY
+        case foo
+        when bar
+        end.baz
+      RUBY
+
+      assert_source <<-RUBY
+        class << self
+        end.bar
+      RUBY
+
+      assert_source <<-RUBY
+        def self.foo
+        end.bar
+      RUBY
+
+      assert_source <<-RUBY
+        def foo
+        end.bar
+      RUBY
+
+      assert_source <<-RUBY
+        until foo
+        end.bar
+      RUBY
+
+      assert_source <<-RUBY
+        while foo
+        end.bar
+      RUBY
+
+      assert_source <<-RUBY
+        loop do
+        end.bar
+      RUBY
+
+      assert_source <<-RUBY
+        class Foo
+        end.bar
+      RUBY
+
+      assert_source <<-RUBY
+        module Foo
+        end.bar
+      RUBY
+
+      assert_source <<-RUBY
+        if foo
+        end.baz
+      RUBY
+
+      assert_source <<-RUBY
+        local = 1
+        local.bar
+      RUBY
 
       assert_source 'foo.bar(*args)'
       assert_source 'foo.bar(*arga, foo, *argb)'
@@ -616,6 +711,11 @@ describe Unparser do
       assert_source <<-RUBY
         unless 3
           9
+        end
+      RUBY
+
+      assert_source <<-RUBY
+        if foo
         end
       RUBY
     end
@@ -914,6 +1014,8 @@ describe Unparser do
         assert_source "a #{operator} b"
         assert_source "(a #{operator} b).foo"
       end
+
+      assert_source 'left / right'
     end
 
     context 'nested binary operators' do
@@ -923,14 +1025,15 @@ describe Unparser do
     end
 
     context 'binary operator' do
-       assert_source 'a || (break(foo))'
-       assert_source '(break(foo)) || (a)'
-       assert_source '(a || b).foo'
-       assert_source 'a || (b || c)'
+      assert_source 'a || (break(foo))'
+      assert_source '(break(foo)) || a'
+      assert_source '(a || b).foo'
+      assert_source 'a || (b || c)'
     end
 
     { :or => :'||', :and => :'&&' }.each do |word, symbol|
       assert_generates "a #{word} break foo", "a #{symbol} (break(foo))"
+      assert_generates "a #{word} next foo", "a #{symbol} (next(foo))"
     end
 
     context 'expansion of shortcuts' do
