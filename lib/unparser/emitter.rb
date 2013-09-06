@@ -359,13 +359,8 @@ module Unparser
         begin_pos = loc.expression.begin_pos
         comment_before_count = comments_left.index { |comment| comment.location.expression.begin_pos > begin_pos } || comments_left.size
         comments_before = comments_left.shift(comment_before_count)
-        unless comments_before.empty?
-          max = comments_before.size - 1
-          comments_before.each_with_index do |comment, index|
-            buffer.ensure_nl
-            write(comment.text)
-            buffer.ensure_nl if index < max
-          end
+        comments_before.each do |comment|
+          write(comment.text)
           nl
         end
       end

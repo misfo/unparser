@@ -37,10 +37,6 @@ module Unparser
       @content.empty? || @content[-1] == NL
     end
 
-    def ensure_nl
-      nl unless fresh_line?
-    end
-
     def append_to_end_of_line(string)
       @line_suffix << string
       self
