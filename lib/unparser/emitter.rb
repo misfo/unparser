@@ -334,10 +334,10 @@ module Unparser
           max = comments_before.size - 1
           comments_before.each_with_index do |comment, index|
             buffer.ensure_nl
-            buffer.append(comment.text)
+            write(comment.text)
             buffer.ensure_nl if index < max
           end
-          buffer.nl
+          nl
         end
       end
 

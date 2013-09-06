@@ -1121,6 +1121,21 @@ describe Unparser do
         # last
       RUBY
 
+      assert_source <<-RUBY
+        =begin
+          block comment
+        =end
+        nested do
+        =begin
+        another block comment
+        =end
+          something
+        =begin
+        last block comment
+        =end
+        end
+      RUBY
+
       assert_generates "1 + # first\n  2 # second", "1 + 2 # first # second"
       assert_generates "1 +\n# first\n  2 # second", "1 + 2 # first # second"
     end
