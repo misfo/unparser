@@ -20,7 +20,9 @@ module Unparser
       node = Parser::AST::Node.new(:empty)
     end
     buffer = Buffer.new
-    Emitter.emitter(node, Emitter::Root.new(buffer, comments)).write_to_buffer
+    comment_enumerator = CommentEnumerator.new(comments)
+    root = Emitter::Root.new(buffer, comment_enumerator)
+    Emitter.emitter(node, root).write_to_buffer
     buffer.content
   end
 
@@ -42,6 +44,7 @@ module Unparser
 end # Unparser
 
 require 'unparser/buffer'
+require 'unparser/comment_enumerator'
 require 'unparser/constants'
 require 'unparser/emitter'
 require 'unparser/emitter/literal'

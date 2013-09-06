@@ -155,10 +155,10 @@ module Unparser
     end
     memoize :buffer, :freezer => :noop
 
-    def comments_left
-      parent.comments_left
+    def comment_enumerator
+      parent.comment_enumerator
     end
-    memoize :comments_left, :freezer => :noop
+    memoize :comment_enumerator, :freezer => :noop
 
   private
 
@@ -356,9 +356,7 @@ module Unparser
       return yield if loc.nil?
 
       if buffer.fresh_line?
-        begin_pos = loc.expression.begin_pos
-        comment_before_count = comments_left.index { |comment| comment.location.expression.begin_pos > begin_pos } || comments_left.size
-        comments_before = comments_left.shift(comment_before_count)
+        comments_before = comment_enumerator.take_before(loc.expression.begin_pos)
         comments_before.each do |comment|
           write(comment.text)
           nl
@@ -368,24 +366,20 @@ module Unparser
       yield
 
       node_range = loc.expression
-      end_line = node_range.end.line
-      last_pos_emitted = node_range.end_pos
-      while comments_left.size > 0 && comments_left.first.location.expression.line <= end_line
-        comment = comments_left.shift
+      eol_comments = comment_enumerator.take_up_to_line(node_range.end.line)
+      eol_comments.each do |comment|
         buffer.append_to_end_of_line(WS + comment.text)
-        last_pos_emitted = [last_pos_emitted, comment.location.expression.end_pos].max
       end
 
-      while comments_left.size > 0
-        comment_range = comments_left.first.location.expression
-        range_between = Parser::Source::Range.new(comment_range.source_buffer, last_pos_emitted, comment_range.begin_pos)
-        if range_between.source =~ /\A\s*\Z/
-          comment = comments_left.shift
-          buffer.append_to_end_of_line(NL + comment.text)
-          last_pos_emitted = comment_range.end_pos
-        else
-          break
-        end
+      last_pos_emitted = if eol_comments.empty?
+                           node_range.end_pos
+                         else
+                           [node_range.end_pos, eol_comments.last.location.expression.end_pos].max
+                         end
+
+      comments_after = comment_enumerator.take_all_contiguous_after(last_pos_emitted)
+      comments_after.each do |comment|
+        buffer.append_to_end_of_line(NL + comment.text)
       end
     end
 
