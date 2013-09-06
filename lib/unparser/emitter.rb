@@ -358,8 +358,12 @@ module Unparser
       if buffer.fresh_line?
         comments_before = comment_enumerator.take_before(loc.expression.begin_pos)
         comments_before.each do |comment|
-          write(comment.text)
-          nl
+          if comment.type == :document
+            buffer.append_without_prefix(comment.text)
+          else
+            write(comment.text)
+            nl
+          end
         end
       end
 
@@ -379,7 +383,8 @@ module Unparser
 
       comments_after = comment_enumerator.take_all_contiguous_after(last_pos_emitted)
       comments_after.each do |comment|
-        buffer.append_to_end_of_line(NL + comment.text)
+        indented = (comment.type != :document)
+        buffer.append_suffix_line(indented, comment.text.chomp)
       end
     end
 

@@ -14,7 +14,11 @@ module Unparser
     def initialize
       @content = ''
       @line_suffix = ''
+      @suffix_lines = []
       @indent = 0
+    end
+
+    class SuffixLine < Struct.new(:indented, :string)
     end
 
     # Append string
@@ -39,6 +43,16 @@ module Unparser
 
     def append_to_end_of_line(string)
       @line_suffix << string
+      self
+    end
+
+    def append_suffix_line(indented, string)
+      @suffix_lines << SuffixLine.new(indented, string)
+      self
+    end
+
+    def append_without_prefix(string)
+      @content << string
       self
     end
 
@@ -73,11 +87,8 @@ module Unparser
     # @api private
     #
     def nl
-      @line_suffix.lines.each do |line|
-        append(line)
-      end
+      suffix
       @content << NL
-      @line_suffix = ''
       self
     end
 
@@ -88,7 +99,8 @@ module Unparser
     # @api private
     #
     def content
-      (@content + @line_suffix).freeze
+      suffix
+      @content.dup.freeze
     end
 
   private
@@ -101,6 +113,20 @@ module Unparser
     #
     def prefix
       @content << '  '*@indent
+    end
+
+    def suffix
+      @content << @line_suffix
+      @line_suffix = ''
+      @suffix_lines.each do |suffix_line|
+        @content << NL
+        if suffix_line.indented
+          append(suffix_line.string)
+        else
+          append_without_prefix(suffix_line.string)
+        end
+      end
+      @suffix_lines.clear
     end
 
   end # Buffer
