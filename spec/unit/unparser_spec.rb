@@ -1241,6 +1241,7 @@ describe Unparser do
 
       assert_generates "1 + # first\n  2 # second", "1 + 2 # first # second"
       assert_generates "1 +\n# first\n  2 # second", "1 + 2 # first # second"
+      assert_generates "1 +\n=begin\n  block comment\n=end\n  2", "1 + 2\n=begin\n  block comment\n=end"
     end
   end
 end

@@ -371,6 +371,7 @@ module Unparser
 
       node_range = loc.expression
       eol_comments = comment_enumerator.take_up_to_line(node_range.end.line)
+      comments_after, eol_comments = eol_comments.partition(&:document?)
       eol_comments.each do |comment|
         buffer.append_to_end_of_line(WS + comment.text)
       end
@@ -381,9 +382,9 @@ module Unparser
                            [node_range.end_pos, eol_comments.last.location.expression.end_pos].max
                          end
 
-      comments_after = comment_enumerator.take_all_contiguous_after(last_pos_emitted)
+      comments_after.concat comment_enumerator.take_all_contiguous_after(last_pos_emitted)
       comments_after.each do |comment|
-        indented = (comment.type != :document)
+        indented = !comment.document?
         buffer.append_suffix_line(indented, comment.text.chomp)
       end
     end
