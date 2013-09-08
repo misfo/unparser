@@ -84,7 +84,13 @@ module Unparser
     # @api private
     #
     def write_to_buffer
-      emit_surrounding_comments { dispatch }
+      emit_comments_before if parent.is_a?(Root)
+      dispatch
+      comment_enumerator.last_source_range_written = node.location.expression if node.location
+      if parent.is_a?(Root)
+        emit_eol_comments
+        emit_comments_after(true, true)
+      end
       self
     end
     memoize :write_to_buffer
@@ -289,7 +295,23 @@ module Unparser
     # @api private
     #
     def nl
+      emit_eol_comments
       buffer.nl
+      emit_comments_after
+    end
+
+    def emit_comments_after(prepend_nl = false, omit_trailing_nl = false)
+      comments_after = comment_enumerator.take_all_contiguous_after
+      buffer.nl if prepend_nl && !comments_after.empty?
+      emit_comments(comments_after, true, omit_trailing_nl)
+    end
+
+    def emit_eol_comments
+      eol_comments = comment_enumerator.eol_comments
+      eol_comments.each do |comment|
+        write(WS, comment.text)
+      end
+      !eol_comments.empty?
     end
 
     # Write strings into buffer
@@ -347,45 +369,30 @@ module Unparser
     def indented
       buffer = self.buffer
       buffer.indent
+      nl
       yield
+      nl
       buffer.unindent
     end
 
-    def emit_surrounding_comments
+    def emit_comments_before
       loc = node.location
       node_range = loc.expression if loc
-      return yield if node_range.nil?
+      return if node_range.nil?
+      comments_before = comment_enumerator.take_before(node_range.begin_pos)
+      emit_comments(comments_before, true)
+    end
 
-      if buffer.fresh_line?
-        comments_before = comment_enumerator.take_before(node_range.begin_pos)
-        comments_before.each do |comment|
-          if comment.type == :document
-            buffer.append_without_prefix(comment.text)
-          else
-            write(comment.text)
-            nl
-          end
+    def emit_comments(comments, nls_after = false, unless_max = false)
+      max = comments.size - 1
+      comments.each_with_index do |comment, index|
+        buffer.nl if !nls_after && index < max
+        if comment.type == :document
+          buffer.append_without_prefix(comment.text.chomp)
+        else
+          write(comment.text)
         end
-      end
-
-      yield
-
-      eol_comments = comment_enumerator.take_up_to_line(node_range.end.line)
-      comments_after, eol_comments = eol_comments.partition(&:document?)
-      eol_comments.each do |comment|
-        buffer.append_to_end_of_line(WS + comment.text)
-      end
-
-      last_pos_emitted = if eol_comments.empty?
-                           node_range.end_pos
-                         else
-                           [node_range.end_pos, eol_comments.last.location.expression.end_pos].max
-                         end
-
-      comments_after.concat comment_enumerator.take_all_contiguous_after(last_pos_emitted)
-      comments_after.each do |comment|
-        indented = !comment.document?
-        buffer.append_suffix_line(indented, comment.text.chomp)
+        buffer.nl if nls_after && (!unless_max || index < max)
       end
     end
 
@@ -399,7 +406,9 @@ module Unparser
     #
     def emit_body(body = self.body)
       unless body
+        buffer.indent
         nl
+        buffer.unindent
         return
       end
       visit_indented(body)
