@@ -84,10 +84,10 @@ module Unparser
     # @api private
     #
     def write_to_buffer
-      emit_comments_before if parent.is_a?(Root)
+      emit_comments_before if buffer.fresh_line?
       dispatch
       comment_enumerator.last_source_range_written = node.location.expression if node.location
-      emit_comments_after if parent.is_a?(Root)
+      emit_eof_comments if parent.is_a?(Root)
       self
     end
     memoize :write_to_buffer
@@ -292,16 +292,18 @@ module Unparser
     # @api private
     #
     def nl
-      emit_comments_after
+      emit_eol_comments
       buffer.nl
     end
 
-    def emit_comments_after
-      emit_eol_comments
-      comments_after = comment_enumerator.take_all_contiguous_after
-      unless comments_after.empty?
+    def emit_comments_before(source_part = :expression)
+      loc = node.location
+      range = loc.send(source_part) if loc.respond_to?(source_part)
+      return if range.nil?
+      comments_before = comment_enumerator.take_before(range.begin_pos)
+      unless comments_before.empty?
+        emit_comments(comments_before)
         buffer.nl
-        emit_comments(comments_after)
       end
     end
 
@@ -311,14 +313,12 @@ module Unparser
       end
     end
 
-    def emit_comments_before
-      loc = node.location
-      node_range = loc.expression if loc
-      return if node_range.nil?
-      comments_before = comment_enumerator.take_before(node_range.begin_pos)
-      unless comments_before.empty?
-        emit_comments(comments_before)
+    def emit_eof_comments
+      emit_eol_comments
+      comments_left = comment_enumerator.take_all
+      unless comments_left.empty?
         buffer.nl
+        emit_comments(comments_left)
       end
     end
 
@@ -353,6 +353,9 @@ module Unparser
     # @api private
     #
     def k_end
+      buffer.indent
+      emit_comments_before(:end)
+      buffer.unindent
       write(K_END)
     end
 

@@ -70,6 +70,10 @@ module Unparser
       self
     end
 
+    def fresh_line?
+      @content.empty? || @content[-1] == NL
+    end
+
     # Return content of buffer
     #
     # @return [String]
